@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>3D Model Viewer</title>
+    <style>        body { 
+            margin: 0;
+            overflow: hidden;
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+        }
+        canvas { display: block; }
+        #container { 
+            width: 100vw; 
+            height: 100vh;
+        }
+        
+        #loading-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        #progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #444;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        
+        #progress {
+            width: 0%;
+            height: 100%;
+            background: #2196F3;
+            border-radius: 5px;
+            transition: width 0.3s ease-in-out;
+        }
+
+        #animation-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+
+        .control-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            transition: background 0.3s;
+        }
+
+        .control-button:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="loading-container">
+        <div>Loading Model...</div>
+        <div id="progress-bar">
+            <div id="progress"></div>
+        </div>
+    </div>
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/"
+        }
+    }
+    </script>    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { AnimationMixer } from 'three';        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);        // Scene setup continues...
+        
+        // Enhanced renderer with shadows
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setClearColor(0x000000, 0); // Transparent background to show CSS gradient
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        // Enhanced lighting setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Main directional light with shadow
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        scene.add(directionalLight);
+
+        // Add a soft fill light
+        const fillLight = new THREE.DirectionalLight(0x9eb5cc, 0.5);
+        fillLight.position.set(-5, 3, -5);
+        scene.add(fillLight);// Load the model
+        const loader = new GLTFLoader();
+        let model;
+        const loadingContainer = document.getElementById('loading-container');
+        const progress = document.getElementById('progress');        let mixer;
+        let openAnimation;
+        let closeAnimation;
+        let isAnimating = false;
+
+        loader.load(
+            'NIDUS.glb',
+            // Success callback
+            (gltf) => {                model = gltf.scene;
+                scene.add(model);
+
+                // Enable shadows for the model
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+
+                // Add a ground plane to receive shadows
+                const groundGeometry = new THREE.PlaneGeometry(100, 100);
+                const groundMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x333333,
+                    transparent: true,
+                    opacity: 0.5
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = -2;
+                ground.receiveShadow = true;
+                scene.add(ground);
+
+                // Center the model
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center);
+
+                // Position camera to see the model
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera.position.z = maxDim * 2;
+
+                // Setup animations
+                mixer = new THREE.AnimationMixer(model);
+                gltf.animations.forEach((clip) => {
+                    if (clip.name === 'OPEN') {
+                        openAnimation = mixer.clipAction(clip);
+                    } else if (clip.name === 'CLOSE') {
+                        closeAnimation = mixer.clipAction(clip);
+                    }
+                });                // Track door state and setup raycaster
+                let isDoorOpen = false;
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+
+                // Handle click/touch to toggle door
+                renderer.domElement.addEventListener('click', handleClick);
+                renderer.domElement.addEventListener('touchend', (e) => {
+                    if (!isInteracting) { // Only trigger if not rotating
+                        // Convert touch to click position
+                        const touch = e.changedTouches[0];
+                        const clickEvent = {
+                            clientX: touch.clientX,
+                            clientY: touch.clientY
+                        };
+                        handleClick(clickEvent);
+                    }
+                });
+
+                function handleClick(event) {
+                    // Calculate mouse position in normalized device coordinates
+                    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+                    // Update the picking ray with the camera and mouse position
+                    raycaster.setFromCamera(mouse, camera);
+
+                    // Calculate objects intersecting the picking ray
+                    const intersects = raycaster.intersectObject(model, true);
+
+                    // If clicked on the model, toggle door
+                    if (intersects.length > 0 && !isAnimating) {
+                        isAnimating = true;
+                        if (isDoorOpen) {
+                            // Close door
+                            if (openAnimation) openAnimation.stop();
+                            closeAnimation.reset();
+                            closeAnimation.setLoop(THREE.LoopOnce);
+                            closeAnimation.clampWhenFinished = true;
+                            closeAnimation.play();
+                        } else {
+                            // Open door
+                            if (closeAnimation) closeAnimation.stop();
+                            openAnimation.reset();
+                            openAnimation.setLoop(THREE.LoopOnce);
+                            openAnimation.clampWhenFinished = true;
+                            openAnimation.play();
+                        }
+                        isDoorOpen = !isDoorOpen;
+                        setTimeout(() => { isAnimating = false; }, 
+                            (isDoorOpen ? openAnimation : closeAnimation).getClip().duration * 1000);
+                    }
+                }
+
+                // Hide loading screen
+                loadingContainer.style.display = 'none';
+            },
+            // Progress callback
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percentComplete = Math.round((xhr.loaded / xhr.total) * 100);
+                    progress.style.width = percentComplete + '%';
+                }
+            },
+            // Error callback
+            (error) => {
+                console.error('Error loading model:', error);
+                loadingContainer.innerHTML = 'Error loading model';
+            }
+        );
+
+        // Camera position
+        camera.position.z = 5;
+
+        // Variables for rotation
+        let isInteracting = false;
+        let previousPosition = {
+            x: 0,
+            y: 0
+        };
+
+        // Mouse event listeners
+        document.addEventListener('mousedown', (e) => {
+            isInteracting = true;
+            previousPosition = {
+                x: e.clientX,
+                y: e.clientY
+            };
+        });
+
+        document.addEventListener('mouseup', () => {
+            isInteracting = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            handleMovement(e.clientX, e.clientY);
+        });
+
+        // Touch event listeners
+        document.addEventListener('touchstart', (e) => {
+            isInteracting = true;
+            previousPosition = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY
+            };
+        });
+
+        document.addEventListener('touchend', () => {
+            isInteracting = false;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent scrolling while rotating
+            handleMovement(e.touches[0].clientX, e.touches[0].clientY);
+        });        let currentZoom = 1;
+        const minZoom = 1;
+        let maxZoom = 2;
+
+        function handleMovement(clientX, clientY) {
+            if (!isInteracting || !model) return;
+
+            const deltaMove = {
+                x: clientX - previousPosition.x,
+                y: clientY - previousPosition.y
+            };
+
+            model.rotation.y += deltaMove.x * 0.01;
+            model.rotation.x += deltaMove.y * 0.01;
+
+            previousPosition = {
+                x: clientX,
+                y: clientY
+            };
+        }        // Add wheel event for zoom
+        document.addEventListener('wheel', (event) => {
+            if (!model) return;
+            
+            const zoomSpeed = 0.1;
+            const delta = Math.sign(event.deltaY) * zoomSpeed; // Removed the negative sign to invert zoom direction
+            const newZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom + delta));
+            
+            if (newZoom !== currentZoom) {
+                const scale = currentZoom / newZoom; // Inverted the scale calculation
+                camera.position.multiplyScalar(scale);
+                currentZoom = newZoom;
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });        // Animation loop
+        const clock = new THREE.Clock();        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (mixer) {
+                const delta = clock.getDelta();
+                mixer.update(delta);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

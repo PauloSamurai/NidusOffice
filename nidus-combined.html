@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIDUS - Seu Espaço de Foco</title>
+    <style>
+        /* Estilos originais do NIDUS */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            overflow-x: hidden;
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="50" cy="50" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            animation: float 20s ease-in-out infinite;
+        }
+
+        /* Estilos do visualizador 3D */
+        #model-viewer-container {
+            width: 100%;
+            height: 500px;
+            position: relative;
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 40px;
+        }
+
+        #loading-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            text-align: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+        }
+
+        #progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #444;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        #progress {
+            width: 0%;
+            height: 100%;
+            background: #2196F3;
+            border-radius: 5px;
+            transition: width 0.3s ease-in-out;
+        }
+
+        /* Estilos para os cartões de modelos */
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .model-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            transition: transform 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .model-card:hover {
+            transform: translateY(-10px);
+        }
+
+        .model-card h3 {
+            color: #fff;
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+        }
+
+        .model-image {
+            background: rgba(0, 0, 0, 0.2);
+            height: 200px;
+            border-radius: 10px;
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.2rem;
+        }
+
+        .model-features {
+            list-style: none;
+            padding: 0;
+            margin: 1.5rem 0;
+        }
+
+        .model-features li {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 0.5rem 0;
+            font-size: 1rem;
+        }
+
+        .model-button {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            transition: transform 0.2s ease;
+        }
+
+        .model-button:hover {
+            transform: scale(1.05);
+        }
+
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+
+        .scroll-reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Restante dos estilos originais do NIDUS */
+        /* ... (mantenha todos os outros estilos da página original) ... */
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Adicione aqui todos os outros keyframes e media queries da página original */
+        
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+        
+        <div class="hero-content">
+            <h1>ONDE O BARULHO PARA E VOCÊ COMEÇA</h1>
+            <p class="hero-subtitle">Espaços privativos de alta performance para reuniões estratégicas, chamadas importantes ou pausas revigorantes — bem no coração do seu escritório.</p>
+            <p class="hero-tagline">NIDUS – Seu Espaço de Foco</p>
+            <a href="#modelos" class="cta-button">DESCOBRIR NIDUS</a>
+        </div>
+    </section>
+
+    <!-- Models Section with 3D Viewer -->
+    <section class="models" id="modelos">
+        <div class="container">
+            <h2 class="section-title scroll-reveal">MODELOS NIDUS</h2>
+            <p style="text-align: center; font-size: 1.2rem; color: #64748b; margin-bottom: 60px;" class="scroll-reveal">
+                Explore nosso modelo em 3D - Clique para abrir/fechar a porta:
+            </p>
+            
+            <!-- 3D Viewer -->
+            <div id="model-viewer-container" class="scroll-reveal">
+                <div id="loading-container">
+                    <div>Carregando Modelo 3D...</div>
+                    <div id="progress-bar">
+                        <div id="progress"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="models-grid">
+                <!-- NIDUS One -->
+                <div class="model-card scroll-reveal">
+                    <h3>NIDUS One</h3>
+                    <div class="model-image">Individual Workspace</div>
+                    <ul class="model-features">
+                        <li>Espaço individual de foco</li>
+                        <li>Isolamento acústico premium</li>
+                        <li>Ventilação inteligente</li>
+                        <li>Iluminação LED ajustável</li>
+                        <li>Conectividade integrada</li>
+                    </ul>
+                    <a href="#" class="model-button">Saiba Mais</a>
+                </div>
+
+                <!-- NIDUS Plus -->
+                <div class="model-card scroll-reveal">
+                    <h3>NIDUS Plus</h3>
+                    <div class="model-image">Duo Workspace</div>
+                    <ul class="model-features">
+                        <li>Espaço para 2 pessoas</li>
+                        <li>Mesa de reunião integrada</li>
+                        <li>Sistema de videoconferência</li>
+                        <li>Controle de privacidade</li>
+                        <li>Portas deslizantes automáticas</li>
+                    </ul>
+                    <a href="#" class="model-button">Saiba Mais</a>
+                </div>
+
+                <!-- NIDUS Pro -->
+                <div class="model-card scroll-reveal">
+                    <h3>NIDUS Pro</h3>
+                    <div class="model-image">Team Workspace</div>
+                    <ul class="model-features">
+                        <li>Capacidade para 4-6 pessoas</li>
+                        <li>Sala de reunião completa</li>
+                        <li>Sistema de apresentação 4K</li>
+                        <li>Painel de agendamento digital</li>
+                        <li>Customização corporativa</li>
+                    </ul>
+                    <a href="#" class="model-button">Saiba Mais</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Scenario Section -->
+    <section class="scenario">
+        <!-- ... (conteúdo original da seção de cenário) ... -->
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="benefits">
+        <!-- ... (conteúdo original da seção de benefícios) ... -->
+    </section>
+
+    <!-- Footer CTA -->
+    <section class="footer-cta">
+        <!-- ... (conteúdo original do footer) ... -->
+    </section>
+
+    <!-- Three.js e scripts necessários -->
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.153.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.153.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { AnimationMixer } from 'three';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Enhanced renderer with shadows
+        const container = document.getElementById('model-viewer-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setClearColor(0x000000, 0);
+        container.appendChild(renderer.domElement);
+
+        // Enhanced lighting setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Main directional light with shadow
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        scene.add(directionalLight);
+
+        // Add a soft fill light
+        const fillLight = new THREE.DirectionalLight(0x9eb5cc, 0.5);
+        fillLight.position.set(-5, 3, -5);
+        scene.add(fillLight);
+
+        // Load the model
+        const loader = new GLTFLoader();
+        let model;
+        const loadingContainer = document.getElementById('loading-container');
+        const progress = document.getElementById('progress');
+        let mixer;
+        let openAnimation;
+        let closeAnimation;
+        let isAnimating = false;
+
+        loader.load(
+            'NIDUS.glb',
+            // Success callback
+            (gltf) => {
+                model = gltf.scene;
+                scene.add(model);
+
+                // Enable shadows for the model
+                model.traverse((node) => {
+                    if (node.isMesh) {
+                        node.castShadow = true;
+                        node.receiveShadow = true;
+                    }
+                });
+
+                // Add a ground plane to receive shadows
+                const groundGeometry = new THREE.PlaneGeometry(100, 100);
+                const groundMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0x333333,
+                    transparent: true,
+                    opacity: 0.5
+                });
+                const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+                ground.rotation.x = -Math.PI / 2;
+                ground.position.y = -2;
+                ground.receiveShadow = true;
+                scene.add(ground);
+
+                // Center the model
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                model.position.sub(center);
+
+                // Position camera to see the model
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                camera.position.z = maxDim * 2;
+
+                // Setup animations
+                mixer = new THREE.AnimationMixer(model);
+                gltf.animations.forEach((clip) => {
+                    if (clip.name === 'OPEN') {
+                        openAnimation = mixer.clipAction(clip);
+                    } else if (clip.name === 'CLOSE') {
+                        closeAnimation = mixer.clipAction(clip);
+                    }
+                });
+
+                // Track door state and setup raycaster
+                let isDoorOpen = false;
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+
+                // Handle click/touch to toggle door
+                renderer.domElement.addEventListener('click', handleClick);
+                renderer.domElement.addEventListener('touchend', (e) => {
+                    if (!isInteracting) {
+                        const touch = e.changedTouches[0];
+                        const clickEvent = {
+                            clientX: touch.clientX,
+                            clientY: touch.clientY
+                        };
+                        handleClick(clickEvent);
+                    }
+                });
+
+                function handleClick(event) {
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                    raycaster.setFromCamera(mouse, camera);
+                    const intersects = raycaster.intersectObject(model, true);
+
+                    if (intersects.length > 0 && !isAnimating) {
+                        isAnimating = true;
+                        if (isDoorOpen) {
+                            if (openAnimation) openAnimation.stop();
+                            closeAnimation.reset();
+                            closeAnimation.setLoop(THREE.LoopOnce);
+                            closeAnimation.clampWhenFinished = true;
+                            closeAnimation.play();
+                        } else {
+                            if (closeAnimation) closeAnimation.stop();
+                            openAnimation.reset();
+                            openAnimation.setLoop(THREE.LoopOnce);
+                            openAnimation.clampWhenFinished = true;
+                            openAnimation.play();
+                        }
+                        isDoorOpen = !isDoorOpen;
+                        setTimeout(() => { isAnimating = false; }, 
+                            (isDoorOpen ? openAnimation : closeAnimation).getClip().duration * 1000);
+                    }
+                }
+
+                // Hide loading screen
+                loadingContainer.style.display = 'none';
+            },
+            // Progress callback
+            (xhr) => {
+                if (xhr.lengthComputable) {
+                    const percentComplete = Math.round((xhr.loaded / xhr.total) * 100);
+                    progress.style.width = percentComplete + '%';
+                }
+            },
+            // Error callback
+            (error) => {
+                console.error('Error loading model:', error);
+                loadingContainer.innerHTML = 'Error loading model';
+            }
+        );
+
+        // Camera position
+        camera.position.z = 5;
+
+        // Variables for rotation
+        let isInteracting = false;
+        let previousPosition = {
+            x: 0,
+            y: 0
+        };
+
+        // Mouse event listeners
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isInteracting = true;
+            const rect = renderer.domElement.getBoundingClientRect();
+            previousPosition = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        });
+
+        document.addEventListener('mouseup', () => {
+            isInteracting = false;
+        });
+
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            handleMovement(e.clientX - rect.left, e.clientY - rect.top);
+        });
+
+        // Touch event listeners
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            isInteracting = true;
+            const rect = renderer.domElement.getBoundingClientRect();
+            const touch = e.touches[0];
+            previousPosition = {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        });
+
+        renderer.domElement.addEventListener('touchend', () => {
+            isInteracting = false;
+        });
+
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = renderer.domElement.getBoundingClientRect();
+            const touch = e.touches[0];
+            handleMovement(touch.clientX - rect.left, touch.clientY - rect.top);
+        });
+
+        let currentZoom = 1;
+        const minZoom = 1;
+        let maxZoom = 2;
+
+        function handleMovement(clientX, clientY) {
+            if (!isInteracting || !model) return;
+
+            const deltaMove = {
+                x: clientX - previousPosition.x,
+                y: clientY - previousPosition.y
+            };
+
+            model.rotation.y += deltaMove.x * 0.01;
+            model.rotation.x += deltaMove.y * 0.01;
+
+            previousPosition = {
+                x: clientX,
+                y: clientY
+            };
+        }
+
+        // Add wheel event for zoom
+        renderer.domElement.addEventListener('wheel', (event) => {
+            if (!model) return;
+            
+            const zoomSpeed = 0.1;
+            const delta = Math.sign(event.deltaY) * zoomSpeed;
+            const newZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom + delta));
+            
+            if (newZoom !== currentZoom) {
+                const scale = currentZoom / newZoom;
+                camera.position.multiplyScalar(scale);
+                currentZoom = newZoom;
+            }
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (mixer) {
+                const delta = clock.getDelta();
+                mixer.update(delta);
+            }
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+
+    <!-- Script original do NIDUS para animações de scroll -->
+    <script>
+        // Scroll reveal animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver(function(entries) {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('revealed');
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.scroll-reveal').forEach(el => {
+            observer.observe(el);
+        });
+
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add stagger animation to model cards
+        const modelCards = document.querySelectorAll('.model-card');
+        modelCards.forEach((card, index) => {
+            card.style.animationDelay = `${index * 0.2}s`;
+        });
+
+        // Add stagger animation to benefit cards
+        const benefitCards = document.querySelectorAll('.benefit-card');
+        benefitCards.forEach((card, index) => {
+            card.style.animationDelay = `${index * 0.1}s`;
+        });
+
+        // Scroll Reveal Animation
+        function revealOnScroll() {
+            const elements = document.querySelectorAll('.scroll-reveal');
+            elements.forEach(element => {
+                const elementTop = element.getBoundingClientRect().top;
+                const windowHeight = window.innerHeight;
+                if (elementTop < windowHeight * 0.8) {
+                    element.classList.add('active');
+                }
+            });
+        }
+
+        window.addEventListener('scroll', revealOnScroll);
+        window.addEventListener('load', revealOnScroll);
+    </script>
+</body>
+</html>
